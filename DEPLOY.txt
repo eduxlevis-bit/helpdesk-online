@@ -1,0 +1,140 @@
+IT Helpdesk — Deployment guide
+==============================
+
+Everything you need to put the helpdesk on the public internet.
+Tested layout: any PHP 7.4+ / MySQL shared host with phpMyAdmin
+(InfinityFree, FreeHosting.com, ByetHost, AwardSpace, cPanel hosts, …).
+
+
+1. GET A HOST AND A DOMAIN
+--------------------------
+- Free: InfinityFree (infinityfree.com) gives PHP 8.x, MySQL, phpMyAdmin and
+  free SSL. You get a subdomain like yoursite.infinityfreeapp.com.
+- Paid (~KES 1,000–1,500/yr): buy a .com / .co.ke from Namecheap, Hostinger,
+  KeNIC etc. and point it at your host (or host the domain there).
+
+You do NOT need your own computer running. Do not host it on your PC.
+
+
+2. CREATE THE DATABASE
+----------------------
+In your host's control panel (cPanel: "MySQL Databases"):
+  - Create a database, e.g.  xxxx_it_helpdesk
+  - Create a user + strong password
+  - Add the user to the database with ALL PRIVILEGES
+  - Write down: DB name, DB user, DB password, DB host.
+    The host is often NOT "localhost" — InfinityFree gives something like
+    sql123.infinityfree.com. Check your panel's MySQL section.
+
+
+3. UPLOAD THE FILES
+-------------------
+Upload the WHOLE "helpdesk" folder from this zip. Two layouts work:
+
+  A) BEST — document root = public/
+     Upload "helpdesk" to your home directory (e.g. /helpdesk), then in the
+     domain settings set the document root to /helpdesk/public.
+     Result: only public/ is reachable from the internet. The .htaccess files
+     in config/, includes/, storage/, db/ and vendor/ block the rest anyway.
+
+  B) FALLBACK — no document-root setting on your host
+     Upload to public_html/helpdesk/ and open:
+        https://your-domain/helpdesk/public/
+     BASE_URL detects this automatically. The .htaccess files keep
+     config/, includes/, storage/, db/ and vendor/ blocked.
+
+  Upload as BINARY (not ASCII) if the FTP client asks. Keep folder names
+  exactly: config, db, includes, public, storage, vendor.
+
+
+4. CREATE THE SECRETS FILE  config/.env
+----------------------------------------
+The zip does NOT contain your passwords — it ships config/.env.example only.
+On the server (host file manager or FTP):
+
+    1. Go to the  config/  folder
+    2. RENAME  .env.example  ->  .env     (some file managers hide dotfiles:
+       enable "show hidden files" first)
+    3. Edit  .env  and fill in:
+
+        MYSQL_HOST=sql123.infinityfree.com   // your DB host
+        MYSQL_PORT=3306
+        MYSQL_DB=xxxx_it_helpdesk            // your DB name
+        MYSQL_USER=xxxx_it_user              // your DB user
+        MYSQL_PASS=your-strong-password      // your DB password
+
+        MAIL_MODE=smtp
+        MAIL_FROM=you@gmail.com
+        SMTP_USER=you@gmail.com
+        SMTP_PASS=your-gmail-app-password
+
+Nothing else needs changing: BASE_URL auto-detects the domain and the folder
+layout, and .env is never readable from a browser (config/.htaccess blocks
+the whole folder).
+
+WHY .env: config/config.php is shared code — secrets do not belong in it, so
+the deploy zip stays safe to upload/share. Your Gmail App Password and DB
+password live only in .env, which you create on the server.
+
+
+5. CREATE THE TABLES + YOUR ADMIN ACCOUNT
+-----------------------------------------
+Option 1 — installer (easiest):
+    Open  https://your-domain/…/install.php
+      -> "Create tables"
+      -> "Create account" (make yourself the administrator)
+    THEN DELETE install.php FROM THE SERVER. It is protected once an account
+    exists, but removing it is safer.
+
+Option 2 — phpMyAdmin:
+    phpMyAdmin -> select your database -> Import -> choose
+    db/phpmyadmin_import.sql -> Go.
+    Then open install.php once just to "Create account", then delete it.
+
+
+6. TURN ON SSL
+--------------
+Free hosts: cPanel/panel -> "SSL/TLS" or "Let's Encrypt" -> issue/enable.
+Then browse the site with https:// — the app follows the protocol
+automatically. Do not skip this: passwords travel over your site.
+
+
+7. FIRST LOGIN + CLEAN-UP
+-------------------------
+Sign in with the admin account you created, then:
+  - Users & Technicians: create your real technicians and users
+    (the local demo accounts are NOT in this deployment — the import contains
+    no user accounts at all, by design).
+  - Categories: the 8 default categories are seeded; adjust names/departments.
+  - My Profile: set your real email so you receive the admin alerts.
+
+
+EMAILS
+------
+Outbound SMTP through Gmail is already configured, so reply/status/assignment
+emails and admin profile-change alerts send automatically.
+- Recipients must be real, deliverable addresses (the local demo ones like
+  kevin@helpdesk.local are not).
+- If your host blocks outbound port 587 (rare), notifications will show as
+  "Failed" on the ticket — change SMTP_PORT to 465 and SMTP_SECURE to 'ssl'
+  in  config/.env  and retest.
+
+
+TROUBLESHOOTING
+---------------
+- White page: turn on error display — in config/config.php add near the top
+    ini_set('display_errors', 1); error_reporting(E_ALL);
+  or check the host's error log in the panel.
+- "Access denied" on login: wrong DB name/user/password/host in config/.env.
+- 500 error on every page: your host runs an old Apache — the .htaccess
+  files already have the compatibility fallbacks, so this is unlikely; ask
+  the host to enable mod_rewrite/allow .htaccess overrides.
+- Styling missing: re-upload public/css/style.css (FTP transfer may have
+  been interrupted).
+- Emails fail: see EMAILS above.
+
+
+BACKUPS
+-------
+Once a week: phpMyAdmin -> Export -> Quick -> SQL, and download it.
+That file restores everything.
